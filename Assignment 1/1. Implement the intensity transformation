@@ -1,0 +1,40 @@
+import cv2 as cv
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define the intensity ranges
+c = np.array([(50,50),(50,100),(150,255),(150,150)])
+
+# Generate the transformation function
+t1 = np.linspace(0, c[0,1], c[0,0] + 1 - 0).astype('uint8')  
+t2 = np.linspace(c[1,1], c[2,1], c[2,0] - c[1,0]).astype('uint8')
+t3 = np.linspace(c[3,1], 255, 255 - c[3,0]).astype('uint8')
+
+# Concatenate the transformation arrays
+transform = np.concatenate((t1, t2), axis=0).astype('uint8')
+transform = np.concatenate((transform, t3), axis=0).astype('uint8')
+
+# Read the original image
+img_orig = cv.imread('images/emma.jpg', cv.IMREAD_GRAYSCALE)
+
+# Apply the intensity windowing transformation
+image_transformed = cv.LUT(img_orig, transform)
+
+# Display original and transformed images
+fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+axs[0].imshow(img_orig, cmap='gray')
+axs[0].set_title('Original Image')
+axs[0].axis('off')
+axs[1].imshow(image_transformed, cmap='gray')
+axs[1].set_title('Transformed Image')
+axs[1].axis('off')
+
+# Display transformation function
+axs[2].plot(transform)
+axs[2].set_xlabel('Input')
+axs[2].set_ylabel('Output')
+axs[2].set_xlim(0,255)
+axs[2].set_ylim(0,255)
+axs[2].set_aspect('equal') 
+plt.show()
+
