@@ -1,0 +1,51 @@
+import cv2 as cv
+import numpy as np
+import matplotlib.pyplot as plt
+
+img = cv.imread("images/highlights_and_shadows.jpg")
+
+# Convert the image from BGR to LAB color space and split into channels
+L, a, b = cv.split(cv.cvtColor(img, cv.COLOR_BGR2LAB))
+
+# Define gamma values for correction
+gamma = [0.2, 0.8, 1.2, 2]
+
+# Loop through each gamma value to apply gamma correction
+for i in gamma:
+    # Create a lookup table for gamma correction
+    t = np.array([(p/255)**i*255 for p in range(0, 256)]).astype(np.uint8)
+
+    # Apply the gamma correction to the L channel
+    g = cv.LUT(L, t)
+    
+    # Merge the corrected L channel with the original a and b channels
+    corrected_img = cv.merge([g, a, b])
+
+    # Calculate histograms for the original and corrected images
+    hist1 = cv.calcHist([img], [0], None, [256], [0, 256])  
+    hist2 = cv.calcHist([corrected_img], [0], None, [256], [0, 256])  
+
+    # Create a figure for displaying the gamma correction plot
+    fig, ax = plt.subplots(figsize=(3, 3))
+    ax.set_title("\u03B3 = " + str(i))  
+    ax.plot(t)  
+    plt.show()  
+
+    # Create a figure to display the original and gamma-corrected images
+    fig, ax = plt.subplots(1, 2, figsize=(8, 8))
+    ax[0].imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))  
+    ax[0].set_title('Original Image')
+    ax[0].axis('off') 
+
+    ax[1].imshow(cv.cvtColor(corrected_img, cv.COLOR_LAB2RGB))  
+    ax[1].set_title('Gamma Corrected')
+    ax[1].axis('off')  
+    plt.show()  
+
+    # Plot histograms of original and gamma-corrected images
+    plt.plot(hist1)  
+    plt.xlim([0, 256]) 
+    plt.plot(hist2)  
+    plt.xlim([0, 256])  
+    plt.legend(('Original', 'Gamma Corrected'), loc='upper left')  
+    plt.show()  
