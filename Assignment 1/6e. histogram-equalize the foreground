@@ -1,0 +1,11 @@
+# Convert to hsv
+hsv_foreground = cv.cvtColor(foreground, cv.COLOR_BGR2HSV)
+value_foreground = hsv_foreground[:, :, 2]
+
+# Apply histogram equalization
+equalized_value_foreground = cv.equalizeHist(value_foreground)
+
+hsv_foreground[:,:,2] = equalized_value_foreground
+
+plt.imshow(cv.cvtColor(hsv_foreground, cv.COLOR_HSV2RGB)), plt.title('Equalized Foreground')
+plt.show()
