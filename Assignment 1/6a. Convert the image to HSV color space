@@ -1,0 +1,37 @@
+import cv2 as cv
+import matplotlib.pyplot as plt
+
+# Load the image 
+image = cv.imread('images/jeniffer.jpg')
+
+# Convert the image from BGR to HSV color space
+hsv_image = cv.cvtColor(image, cv.COLOR_BGR2HSV)
+
+# Split the image into hue, saturation, and value (HSV) planes
+hue, saturation, value = cv.split(hsv_image)
+
+# Display the original image and the three HSV planes in grayscale
+plt.figure(figsize=(12, 6))
+
+plt.subplot(1, 4, 1)
+plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+plt.title('Original Image')
+plt.axis('off')
+
+plt.subplot(1, 4, 2)
+plt.imshow(hue, cmap='gray')
+plt.title('Hue Plane')
+plt.axis('off')
+
+plt.subplot(1, 4, 3)
+plt.imshow(saturation, cmap='gray')
+plt.title('Saturation Plane')
+plt.axis('off')
+
+plt.subplot(1, 4, 4)
+plt.imshow(value, cmap='gray')
+plt.title('Value Plane')
+plt.axis('off')
+
+plt.tight_layout()
+plt.show()
