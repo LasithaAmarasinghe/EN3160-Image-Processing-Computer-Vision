@@ -1,0 +1,30 @@
+# Define the threshold values for saturation
+saturation_min = 15
+saturation_max = 255
+
+# Create a binary mask based on saturation
+foreground_mask = cv.inRange(saturation, saturation_min, saturation_max)
+
+# Apply morphological operations to reduce noise
+foreground_mask = cv.morphologyEx(foreground_mask, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_ELLIPSE,(80, 80)))
+
+# Obtain the foreground using cv.bitwise_and
+foreground = cv.bitwise_and(image, image, mask=foreground_mask)
+
+# Compute the histogram of the foreground
+histogram = cv.calcHist([foreground], [0], foreground_mask, [256], [0, 256])
+
+# Display the original image, mask, and foreground
+plt.figure(figsize=(24, 8))
+
+plt.subplot(131), plt.imshow(cv.cvtColor(image, cv.COLOR_BGR2RGB)), plt.title('Original Image'), plt.axis('off')
+plt.subplot(132), plt.imshow(foreground_mask, cmap='gray'), plt.title('Mask'), plt.axis('off')
+plt.subplot(133), plt.imshow(cv.cvtColor(foreground, cv.COLOR_BGR2RGB)), plt.title('Foreground'), plt.axis('off')
+plt.show()
+
+# Plot the histogram
+plt.plot(histogram)
+plt.title('Histogram of Foreground')
+plt.xlabel('Pixel Value')
+plt.ylabel('Frequency')
+plt.show()
