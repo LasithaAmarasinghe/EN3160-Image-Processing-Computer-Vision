@@ -1,0 +1,8 @@
+cumulative_histogram = np.cumsum(histogram)
+
+# Plot the cumulative histogram
+plt.plot(cumulative_histogram)
+plt.title('Cumulative Histogram of Foreground')
+plt.xlabel('Pixel Value')
+plt.ylabel('Cumulative Frequency')
+plt.show()
