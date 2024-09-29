@@ -1,0 +1,60 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Function to perform histogram equalization
+def histogram_equalization(img):
+    # Flatten the image into a 1D array of pixel values
+    img_flattened = img.flatten()
+
+    # Compute the histogram (256 bins for 8-bit grayscale image)
+    hist, bins = np.histogram(img_flattened, bins=256, range=[0, 256])
+
+    # Compute the cumulative distribution function (CDF)
+    cdf = hist.cumsum()
+
+    # Normalize the CDF to range between 0 and 255
+    cdf_normalized = (cdf - cdf.min()) * 255 / (cdf.max() - cdf.min())
+    cdf_normalized = cdf_normalized.astype('uint8')  # Convert to uint8
+
+    # Use the CDF to map the original pixel values
+    img_equalized = cdf_normalized[img_flattened]
+
+    # Reshape back to the original image shape
+    img_equalized = img_equalized.reshape(img.shape)
+
+    return img_equalized, hist, cdf_normalized
+
+# Load the image (replace with the actual image path)
+image = cv2.imread('images/shells.tif', cv2.IMREAD_GRAYSCALE)
+
+# Apply the histogram equalization
+equalized_image, hist_before, cdf_normalized = histogram_equalization(image)
+
+# Compute the histogram after equalization
+hist_after, _ = np.histogram(equalized_image.flatten(), bins=256, range=[0, 256])
+
+# Display the original and equalized images side by side
+plt.figure(figsize=(12, 6))
+
+plt.subplot(2, 2, 1)
+plt.imshow(image, cmap='gray')
+plt.title('Original Image')
+plt.axis('off')
+
+plt.subplot(2, 2, 2)
+plt.imshow(equalized_image, cmap='gray')
+plt.title('Equalized Image')
+plt.axis('off')
+
+# Plot the histograms before and after equalization
+plt.subplot(2, 2, 3)
+plt.plot(hist_before, color='black')
+plt.title('Histogram Before Equalization')
+
+plt.subplot(2, 2, 4)
+plt.plot(hist_after, color='black')
+plt.title('Histogram After Equalization')
+
+plt.tight_layout()
+plt.show()
