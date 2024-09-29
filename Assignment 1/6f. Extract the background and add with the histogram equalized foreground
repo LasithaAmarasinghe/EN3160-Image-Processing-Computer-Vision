@@ -1,0 +1,14 @@
+background_mask = cv.bitwise_not(foreground_mask)
+
+# Obtain the background using cv.bitwise_and
+extracted_background = cv.bitwise_and(image, image, mask=background_mask)
+
+# Combine the background and histogram-equalized foreground
+result = cv.add(extracted_background, cv.cvtColor(hsv_foreground, cv.COLOR_HSV2BGR))
+
+plt.figure(figsize=(18, 6))
+
+# Display the result
+plt.subplot(121),plt.imshow(cv.cvtColor(extracted_background, cv.COLOR_BGR2RGB)),plt.title('Extracted Background'),plt.axis('off')
+plt.subplot(122),plt.imshow(cv.cvtColor(result, cv.COLOR_BGR2RGB)),plt.title('Background + Histogram Equalized Foreground'),plt.axis('off')
+plt.show()
