@@ -1,0 +1,18 @@
+# Try different values of 'a'
+a_values = [0 , 0.2, 0.5, 0.8]  # Different values of 'a' for comparison
+
+# Create a figure with subplots arranged in one row
+plt.figure(figsize=(15, 5))  # Adjust size for better clarity
+
+for i, a in enumerate(a_values):
+    transformed_s = intensity_transform(s, a, sigma)
+    
+    # Plot the transformed saturation plane in the ith subplot
+    plt.subplot(1, 4, i + 1)
+    plt.imshow(transformed_s, cmap='gray')
+    plt.title(f'Transformed Saturation (a={a})')
+    plt.axis('off')
+
+# Show all plots in one row
+plt.tight_layout()
+plt.show()
