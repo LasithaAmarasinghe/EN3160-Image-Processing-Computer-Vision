@@ -1,0 +1,36 @@
+import cv2 as cv
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Read the image
+img = cv.imread('images/einstein.png', cv.IMREAD_GRAYSCALE).astype(np.float32)
+
+# Define the Sobel kernels
+sobel_v = np.array([[1,2,1],[0,0,0],[-1,-2,-1]], dtype ='float')
+sobel_h = np.array([[1,0,-1],[2,0,-2],[1,0,-1]], dtype ='float')
+
+# Apply the Sobel filter for gradients
+grad_y = cv.filter2D(img, -1, sobel_v)
+grad_x = cv.filter2D(img, -1, sobel_h)
+grad_mag = np.sqrt(grad_x**2 + grad_y**2)
+
+# Plot the results
+fig,axes = plt.subplots(1,4, sharex=True, sharey=True, figsize=(12,3))
+axes[0].imshow(img, cmap='gray', vmin=0, vmax=255)
+axes[0].set_title('Original')
+axes[0].axis('off')
+
+axes[1].imshow(grad_y, cmap='gray', vmin=-1020, vmax=1020)
+axes[1].set_title('Sobel vertical')
+axes[1].axis('off')
+
+axes[2].imshow(grad_x, cmap='gray', vmin=-1020, vmax=1020)
+axes[2].set_title('Sobel horizonatal')
+axes[2].axis('off')
+
+axes[3].imshow(grad_mag, cmap='gray', vmin=-1020, vmax=1020)
+axes[3].set_title('Gradiant magnitude')
+axes[3].axis('off')
+
+# Show the figure
+plt.show()
