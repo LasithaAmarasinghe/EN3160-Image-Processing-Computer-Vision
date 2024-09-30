@@ -1,0 +1,40 @@
+import cv2 as cv
+import numpy as np
+import matplotlib.pyplot as plt
+
+img = cv.imread('images/daisy.jpg')
+assert img is not None, "Image not found."
+
+# Initialize mask and background/foreground models
+mask = np.zeros(img.shape[:2], np.uint8)
+bgd_model = np.zeros((1, 65), np.float64)
+fgd_model = np.zeros((1, 65), np.float64)
+
+# Define a rectangle around the object (foreground) for GrabCut
+rect = (10, 10, img.shape[1] - 10, img.shape[0] - 10)  # Adjust rectangle as needed
+
+# Apply GrabCut algorithm
+cv.grabCut(img, mask, rect, bgd_model, fgd_model, 5, cv.GC_INIT_WITH_RECT)
+
+# Modify the mask to get a binary mask
+mask2 = np.where((mask == 2) | (mask == 0), 0, 1).astype('uint8')  # Background is 0, Foreground is 1
+
+# Create the foreground and background images
+foreground = img * mask2[:, :, np.newaxis]  # Apply the mask to the original image
+background = img * (1 - mask2[:, :, np.newaxis])  # Invert the mask for background
+
+# Display the results
+fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+ax[0].imshow(mask2, cmap='gray')
+ax[0].set_title('Final Segmentation Mask')
+ax[0].axis('off')
+
+ax[1].imshow(cv.cvtColor(foreground, cv.COLOR_BGR2RGB))
+ax[1].set_title('Foreground Image')
+ax[1].axis('off')
+
+ax[2].imshow(cv.cvtColor(background, cv.COLOR_BGR2RGB))
+ax[2].set_title('Background Image')
+ax[2].axis('off')
+
+plt.show()
