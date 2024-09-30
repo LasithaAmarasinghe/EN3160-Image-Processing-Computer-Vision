@@ -1,0 +1,20 @@
+# Create the foreground image
+foreground = img * mask2[:, :, np.newaxis]  # Apply the mask to the original image
+
+# Create a blurred version of the image
+blurred_background = cv.GaussianBlur(img, (21, 21), 0)  # Adjust the kernel size for more/less blur
+
+# Combine the foreground with the blurred background
+enhanced_image = blurred_background * (1 - mask2[:, :, np.newaxis]) + foreground
+
+# Display the original and enhanced images
+fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+ax[0].imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))  # Convert BGR to RGB for correct color display
+ax[0].set_title('Original Image')
+ax[0].axis('off')
+
+ax[1].imshow(cv.cvtColor(enhanced_image.astype(np.uint8), cv.COLOR_BGR2RGB))  # Ensure the enhanced image is uint8
+ax[1].set_title('Enhanced Image (Blurred Background)')
+ax[1].axis('off')
+
+plt.show()
