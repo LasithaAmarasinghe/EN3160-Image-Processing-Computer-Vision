@@ -1,0 +1,47 @@
+# sigma  = 2
+
+# Load the color image with reduced resolution
+image_path = 'Images/the_berry_farms_sunflower_field.jpeg'  # Replace with the actual path to your image
+original = cv.imread(image_path, cv.IMREAD_REDUCED_COLOR_4)
+image = original.copy()
+# Convert the image to grayscale
+gray_image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+
+# Apply GaussianBlur to reduce noise and improve LoG edge detection
+blurred_image = cv.GaussianBlur(gray_image, (9, 9), 2)
+
+# Apply Laplacian of Gaussians (LoG) for edge detection
+edges = cv.Laplacian(blurred_image, cv.CV_64F)
+
+# Compute a variable threshold based on local intensity of LoG responses
+edges_std = np.std(edges)
+min_threshold = 2 #minmum threshold
+max_threshold = 100
+
+# Threshold the LoG edges
+_, binary_edges = cv.threshold(edges,min_threshold , max_threshold, cv.THRESH_BINARY)
+
+
+# Find contours in the binary edges
+contours, _ = cv.findContours(binary_edges.astype(np.uint8), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+# Filter and draw circles based on the contours
+for contour in contours:
+    area = cv.contourArea(contour)
+    if area < 5 or area > 8000:
+        continue
+
+    perimeter = cv.arcLength(contour, True)
+    circularity = 4 * np.pi * area / (perimeter ** 2)
+
+    # Filter based on circularity
+    if circularity > 0.48:
+        (x, y), radius = cv.minEnclosingCircle(contour)
+        center = (int(x), int(y))
+        radius = int(radius)
+        cv.circle(image, center, radius, (0, 255, 0), 2)  # Draw circle perimeter with reduced thickness
+
+# Display the color image with circles
+plt.imshow(cv.cvtColor(image, cv.COLOR_BGR2RGB))
+plt.axis('off')
+plt.show()
