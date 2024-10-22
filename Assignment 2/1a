@@ -1,0 +1,66 @@
+# Load the color image with reduced resolution
+image_path = 'images/the_berry_farms_sunflower_field.jpeg'  
+original = cv.imread(image_path, cv.IMREAD_REDUCED_COLOR_4)
+image = original.copy()
+plt.imshow(cv.cvtColor(original, cv.COLOR_BGR2RGB))
+plt.axis('off')
+plt.title("Original Image")
+
+# Convert the image to grayscale
+gray_image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+
+# Sigma values for GaussianBlur
+sigma_values = [1,2, 3, 4, 5, 6, 7, 8, 9]  # Sigma values
+
+# Set up the subplot layout
+num_rows = 3
+num_cols = 3
+
+# Create a new figure
+plt.figure(figsize=(10, 10))
+
+for i, sigma in enumerate(sigma_values):
+    # Apply GaussianBlur with the current sigma
+    blurred_image = cv.GaussianBlur(gray_image, (9, 9), sigma)
+
+    # Apply Laplacian of Gaussians (LoG) for edge detection
+    edges = cv.Laplacian(blurred_image, cv.CV_64F)
+
+    # Compute a variable threshold based on the local intensity of LoG responses
+    edges_std = np.std(edges)
+    min_threshold = 2  # Minimum intensity threshold
+    max_threshold = 100 # Maximum intensity threshold
+
+    # Threshold the LoG edges
+    _, binary_edges = cv.threshold(edges, min_threshold, max_threshold, cv.THRESH_BINARY)
+
+    # Find contours in the binary edges
+    contours, _ = cv.findContours(binary_edges.astype(np.uint8), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+    # Create a subplot for the current sigma value
+    plt.subplot(num_rows, num_cols, i + 1)
+    plt.title(f'Sigma = {sigma}')
+    
+    # Filter and draw circles based on the contours
+    for contour in contours:
+        area = cv.contourArea(contour)
+        if area < 10 or area > 8000:
+            continue
+
+        perimeter = cv.arcLength(contour, True)
+        circularity = 4 * np.pi * area / (perimeter ** 2)
+
+        # Filter based on circularity
+        if circularity > 0.48:
+            (x, y), radius = cv.minEnclosingCircle(contour)
+            center = (int(x), int(y))
+            radius = int(radius)
+            cv.circle(image, center, radius, (0, 255, 0), 2)  # Draw circle perimeter with reduced thickness
+
+    # Display the color image with circles
+    plt.imshow(cv.cvtColor(image, cv.COLOR_BGR2RGB))
+    plt.axis('off')
+
+# Adjust layout and show the figure
+plt.tight_layout()
+plt.show()
