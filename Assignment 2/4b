@@ -1,0 +1,27 @@
+def calculateHomography(correspondences):
+    temp_list = []
+    for points in correspondences:
+        p1 = np.matrix([points.item(0), points.item(1), 1]) # (x1,y1)
+        p2 = np.matrix([points.item(2), points.item(3), 1]) # (x2,y2)
+
+        a2 = [0, 0, 0, -p2.item(2) * p1.item(0), -p2.item(2) * p1.item(1), 
+              -p2.item(2) * p1.item(2),p2.item(1) * p1.item(0), 
+              p2.item(1) * p1.item(1), p2.item(1) * p1.item(2)]
+        a1 = [-p2.item(2) * p1.item(0), -p2.item(2) * p1.item(1),
+              -p2.item(2) * p1.item(2), 0, 0, 0, p2.item(0) * p1.item(0), 
+              p2.item(0) * p1.item(1), p2.item(0) * p1.item(2)]
+        temp_list.append(a1)
+        temp_list.append(a2)
+
+    assemble_matrix = np.matrix(temp_list)
+
+    #svd composition
+    u, s, v = np.linalg.svd(assemble_matrix)
+    #reshape the min singular value into a 3 by 3 matrix
+    h = np.reshape(v[8], (3, 3))
+    #normalize 
+    h = (1/h.item(8)) * h
+    return h
+
+# Generate Correspondence Matrices
+correspondenceMatrix1_5 = np.matrix(match1)
