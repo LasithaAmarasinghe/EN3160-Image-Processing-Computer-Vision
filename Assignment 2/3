@@ -1,0 +1,39 @@
+## change flag and img according to your choice
+
+import cv2 as cv
+import numpy as np
+import matplotlib.pyplot as plt
+
+coffs = [0.8, 1, 0]
+flag=cv.imread('img/flag.png')
+points = []
+clicks = 0
+def click(event, x, y, flags, params):
+    if event == cv.EVENT_LBUTTONDOWN:
+        points.append([x,y])
+img = cv.imread('img/Architectural_set.jpg')
+cv.imshow('image', img)
+cv.setMouseCallback('image', click)
+cv.waitKey(0)
+cv.destroyAllWindows()
+
+w, h = flag.shape[1], flag.shape[0]
+pts_src = np.array([[0, 0], [w-1, 0], [w-1, h-1], [0, h-1]])
+pts_dst = np.array(points)
+h, status = cv.findHomography(pts_src, pts_dst)
+im_out = cv.warpPerspective(flag, h, (img.shape[1], img.shape[0]))
+blended_img = cv.addWeighted(img, coffs[0], im_out, coffs[1], coffs[2])
+im=[img, flag, blended_img]
+cv.imshow("Blended Image", blended_img)
+cv.waitKey(0)
+cv.destroyAllWindows()
+
+fig, ax = plt.subplots(1, 3, figsize=(15, 10), facecolor="white")
+titles = ['Main Image', 'Flag Image', 'Warped Image']
+for j in range(3):
+    transformed_img_ = cv.cvtColor(im[j], cv.COLOR_BGR2RGB)
+    ax[j].axis('off')
+    ax[j].imshow(transformed_img_)
+    ax[j].set_title(titles[j])
+
+plt.show()
