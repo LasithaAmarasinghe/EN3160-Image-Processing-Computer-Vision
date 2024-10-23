@@ -47,4 +47,13 @@ def ransac(matched_points):
 
 # Run ransac algorithm
 H1_5 = ransac(correspondenceMatrix1_5)
-print(H1_5)
+
+# Warp the image
+width = img1.shape[1] + img2.shape[1]
+height = img1.shape[0] + img2.shape[0]
+result = cv.warpPerspective(img1, H1_5, (width, height))
+result[0:img5.shape[0], 0:img5.shape[1]] = img5
+fig, ax = plt.subplots(1,1,figsize= (8,8))
+ax.set_xlim([0, 800])
+ax.set_ylim([0, 650])
+ax.imshow(cv.cvtColor(result,cv.COLOR_BGR2RGB))
