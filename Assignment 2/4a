@@ -1,0 +1,38 @@
+# Import images
+img1 = cv.imread('img/graf/img1.ppm')  
+img5 = cv.imread('img/graf/img5.ppm')
+assert img1 is not None
+assert img5 is not None
+
+def sift_match(im1, im2):
+    GOOD_MATCH_PERCENT = 0.8
+    # Detect sift features
+    sift = cv.SIFT_create()
+    keypoint_1, descriptors_1 = sift.detectAndCompute(im1,None)
+    keypoint_2, descriptors_2 = sift.detectAndCompute(im2,None)
+    # Match features.
+    matcher = cv.BFMatcher()
+    matches = matcher.knnMatch(descriptors_1, descriptors_2, k = 2) 
+    # Filter good matches using ratio test in Lowe's paper
+    good_matches = []
+    for a,b in matches:
+        if a.distance < GOOD_MATCH_PERCENT*b.distance:
+            good_matches.append(a)
+    # Extract location of good matches
+    points1 = np.zeros((len(good_matches), 2), dtype=np.float32)
+    points2 = np.zeros((len(good_matches), 2), dtype=np.float32)
+    for i, match in enumerate(good_matches):
+        points1[i, :] = keypoint_1[match.queryIdx].pt
+        points2[i, :] = keypoint_2[match.trainIdx].pt
+
+    # Plot the matching
+    fig, ax = plt.subplots(figsize = (15,15))
+    ax.axis('off')
+    matched_img = cv.drawMatches(im1, keypoint_1, im2, keypoint_2, good_matches, im2, flags = 2)
+    plt.imshow(cv.cvtColor(matched_img,cv.COLOR_BGR2RGB))
+    plt.show()
+
+    result = np.concatenate((points1,points2), axis = 1)
+    return result
+
+match1 = sift_match(img1,img5)
