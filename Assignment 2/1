@@ -53,3 +53,11 @@ plt.imshow(cv.cvtColor(output, cv.COLOR_BGR2RGB), cmap='gray')
 plt.axis('off')
 plt.title('Detected blobs')
 plt.show()
+
+# Get largest circle
+blobs_sorted = sorted(blob_responses, key=lambda x: x[1], reverse=True)
+largest_blob = blobs_sorted[0]
+center, radius, sigma = largest_blob
+
+# Print largest circle details
+print(f"Largest blob at : {center} with radius {radius} and sigma {sigma}")
