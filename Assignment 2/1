@@ -1,0 +1,55 @@
+import cv2 as cv
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load image
+im = cv.imread('img/the_berry_farms_sunflower_field.jpeg', cv.IMREAD_REDUCED_COLOR_4)
+assert im is not None
+
+# Get grayscale image
+gray = cv.cvtColor(im, cv.COLOR_BGR2GRAY)
+
+# Select range of sigma
+sigma_values = np.linspace(2,4,6,8)
+# Threhsold for blob detection
+threshold = 0.4
+
+# Store responses of each scale
+blob_responses = []
+
+for sigma in sigma_values:
+
+    # Apply Gaussian blur
+    gaussian_blur = cv.GaussianBlur(gray, (0, 0), sigma)
+    # Compute Laplacian of Gaussian (LoG)
+    laplacian = cv.Laplacian(gaussian_blur, cv.CV_64F)
+
+    # Get absolute value
+    blob_response = np.abs(laplacian)
+
+    # Threshold the response and get contours
+    mask = blob_response > threshold * blob_response.max()
+    contours, _ = cv.findContours(mask.astype(np.uint8), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+    # Draw contours as circles
+    for contour in contours:
+        if len(contour) >= 5:
+            # Get the center and radius of the enclosing circle from contour
+            (center_x, center_y), radius = cv.minEnclosingCircle(contour)
+            # Convert to integers
+            center = (int(center_x), int(center_y))
+            radius = int(radius)
+            blob_responses.append((center, radius, sigma))
+
+# Draw all detected circles with the specified line thickness
+output = cv.cvtColor(gray, cv.COLOR_GRAY2BGR)
+for blob in blob_responses:
+    center, radius, _ = blob
+    cv.circle(output, center, radius, (0, 0, 255), 1)
+
+# Display the grayscale image with detected circles
+plt.figure(figsize=(10, 10))
+plt.imshow(cv.cvtColor(output, cv.COLOR_BGR2RGB), cmap='gray')
+plt.axis('off')
+plt.title('Detected blobs')
+plt.show()
