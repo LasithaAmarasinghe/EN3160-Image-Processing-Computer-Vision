@@ -1,0 +1,50 @@
+import random
+def loss(matched_points, h):
+    point1 = np.transpose(np.matrix([matched_points[0].item(0), matched_points[0].item(1), 1]))
+    point2 = np.transpose(np.matrix([matched_points[0].item(2), matched_points[0].item(3), 1]))
+    
+    # Estimate the point after applying the homography
+    transformed_point2 = np.dot(h, point1)
+    transformed_point2 = (1/transformed_point2.item(2))*transformed_point2
+
+    # Calculate the error between the actual and estimated point
+    error = point2 - transformed_point2
+    
+    return np.linalg.norm(error)
+
+def random_sample(data_list):
+    """
+    Returns a list of 3 random samples from a given list
+    """
+    sample_list = []
+    random.seed(0)
+    rand_nums = random.sample(range(1, len(data_list)), 3)
+    for i in rand_nums:
+        sample_list.append(data_list[i])
+    return np.array(sample_list)
+
+def ransac(matched_points):
+    maxInliers = 0
+    best_H = None
+    for i in range(10):
+        random_points = random_sample(matched_points)
+
+        # Generate the homography 
+        homography = calculateHomography(random_points)
+        num_inliers = 0
+
+        # Find the inliers
+        for i in range(len(matched_points)):
+            d = loss(matched_points[i], homography)
+            if d < 3:
+                num_inliers += 1
+
+        if num_inliers > maxInliers:
+            maxInliers = num_inliers
+            best_H = homography
+    
+    return best_H
+
+# Run ransac algorithm
+H1_5 = ransac(correspondenceMatrix1_5)
+print(H1_5)
