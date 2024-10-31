@@ -1,0 +1,209 @@
+function [U,iter]= triangulation(u,P,epsperc,maxerror,maxiter)
+%input u,P
+% This function performs (L2,L2) triangulation to estimate a 3D point U
+% from its 2D projections u in multiple images, using the projection
+% matrices P for each image. It uses a branch-and-bound approach to 
+% iteratively refine the estimate, stopping based on the specified error
+% tolerance.
+
+fprintf('\n\n******** Starting (L2,L2) Triangulation Algorithm ********\n\n');
+
+% Get the number of images (projections)
+nbrimages=length(P);
+
+%epsdiff=1e-7;
+% Set convergence threshold (difference between two iterations)
+epsdiff=0.0;  %can adjust this as needed
+
+% Set default values for optional input parameters
+if nargin<3 || isempty(epsperc)
+    epsperc=0.05; % Allowed percentage gap for solution approximation
+else
+	epsperc = 1-epsperc; % Adjust percentage to match calculation needs
+end
+if nargin < 5
+  maxiter = 200; % Maximum number of iterations 
+end
+
+if nargin<4
+    maxerror=15; % Maximum pixel error allowed
+end
+
+%fprintf('EPS: %f\n',epsperc);
+%Initialize cell array for storing transformed camera projection matrices
+Pt={};
+
+
+%translate all image points to origin
+cc=zeros(3,nbrimages); %Initialize camera centers
+for ii=1:nbrimages
+    Tim=eye(3);
+    Tim(1:2,3)=-u(:,ii);
+    Pt{ii}=Tim*P{ii};
+    tmp=pflat(null(Pt{ii}));
+    cc(:,ii)=tmp(1:3);
+end
+
+%Normalize the first camera matrix 
+%rotate, scale & translate camera Pt{1} such that third row=[1,0,0,0]
+%without effecting cost-function
+v=Pt{1}(3,1:3)';       % Take the third row of the first projection matrix
+[uu,ss,vv]=svd(v);     % Perform SVD decomposition
+RR=uu*sign(uu(1,:)*v); % Compute the rotation matrix
+t0=cc(:,1);            % Translation corresponding to the first camera center
+
+% Compute relative positions of other cameras with respect to the first one
+tmp=RR'*(cc(:,2:end)-t0*ones(1,nbrimages-1));
+
+% Create the transformation matrix T, combining rotation, translation, and scaling
+T = [RR * std(tmp(:)), t0; [0, 0, 0, 1]];
+
+
+%Scale and normalize the projection matrices
+imscale=0;                       % Initialize image scale factor
+for ii=1:nbrimages
+    Pt{ii}=Pt{ii}*T;                      % Apply transformation to each projection matrix
+    Pt{ii}=Pt{ii}/norm(Pt{ii}(3,:));      % Normalize the third row
+    imscale=imscale+norm(Pt{ii}(1:2,:));  % Accumulate scale factor
+end
+imscale=imscale/nbrimages;                % Average the image scale
+
+%Scale the projection matrices 
+for ii=1:nbrimages
+    Pt{ii}(1:2,:)=Pt{ii}(1:2,:)/imscale;
+end
+
+P0=Pt{1};   % Use the normalized first projection matrix for further computations
+
+%upper and lower bounds for the y-coordinate of the 3D point
+
+thr = maxerror/imscale;   % maximum number of pixels for a single term
+yLB = 0.1;                % Lower bound for y
+yUB = 10;                 % Upper bound for y
+[rect_yL,rect_yU]=l2_triangulation_bound(Pt,thr,yLB,yUB); % Get bounds for the triangulation
+xL = 0;                   % Lower bound for x
+xU = 0.1;                 % Upper bound for x
+
+%Initialize the triangulation process with the first set of bounds
+hh = l2_triangulation_loop(Pt, rect_yL, rect_yU, xL, xU, yLB, yUB); % Perform initial triangulation
+vopt = sum(hh.res); % Sum the residuals (cost function)
+U = [1; hh.y(1:3)]; % Initialize the estimated 3D point 
+
+% Store the current lower bound and rectangle information
+rect_LB = hh.lowerbound; % Store the lower bound of the region
+rect = {hh}; % Initialize the set of regions to explore
+
+iter=1;   % Initialize iteration counter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+while iter <= maxiter %Branch and Bound-loop to iteratively refine the solution
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   % Find the rectangle with the smallest lower bound
+   [vk,vkindex]=min(rect_LB);
+   
+   % Compute the difference between the optimal and current residual
+   vdiff=(vopt-vk);
+   perc=(vopt-vk)/vopt;  % Compute the percentage approximation gap
+   
+   % Print iteration status
+   disp(['Iter: ',num2str(iter),' Residual: ',num2str(vopt*imscale),' Approximation gap: ',num2str(perc*100),'% Regions: ',num2str(length(rect))]);
+
+   % Check if the solution has converged
+   if (vdiff<epsdiff) || (perc<epsperc)
+       %'voila'
+       break;    % Stop if the difference or percentage gap is below the threshold
+   end
+   
+   %Split the region with the largest interval
+   %branch on vkindex
+   h=rect{vkindex};    % Get the region with the smallest cost
+%   index_z=3+nbrimages+[1:3:3*(nbrimages-1)]; %location of z_2,z_3,...,z_nbrimages
+%   index_z=3+nbrimages+[1:3:3*(min(nbrimages,4)-1)]; %location of z_2,z_3,...,z_nbrimages
+
+   %denominator to branch on
+%   [slask,pp]=max(h.res(2:min(nbrimages,4))'-h.y(index_z));
+%   [slask,pp]=max(h.res(2:nbrimages)'-h.y(index_z));
+   [slask,pp]=max(rect_yU(:,vkindex)-rect_yL(:,vkindex)); % Find the largest interval for splitting
+   
+   % Get the bounds for the selected interval
+   tmpyL=rect_yL(pp,vkindex);
+   tmpyU=rect_yU(pp,vkindex);
+   
+   
+   % alpha bisection method
+   % Compute the new border for splitting based on the best solution
+   bestsol=h.lambda(pp);
+   alfa=0.1; %minimum shortage of interval relative original
+   if (bestsol-tmpyL)/(tmpyU-tmpyL)<alfa
+       newborder=tmpyL+(tmpyU-tmpyL)*alfa;    % Adjust lower bound
+   elseif (tmpyU-bestsol)/(tmpyU-tmpyL)<alfa
+       newborder=tmpyU-(tmpyU-tmpyL)*alfa;    % Adjust upper bound
+   else
+       newborder=bestsol;
+   end
+   
+   
+%   bisect=(tmpyU+tmpyL)/2;
+%   bestsol=h.lambda(pp);
+%   alfa=0.8;
+%   newborder=bestsol*alfa+bisect*(1-alfa);
+%   newborder=(tmpyU+tmpyL)/2; %bisection
+%   newborder=h.lambda(pp); %best solution
+
+   % Update the bounds for the new regions after splitting
+    curr_yL1 = rect_yL(:, vkindex);    % Copy current lower bound
+    curr_yU1 = rect_yU(:, vkindex);    % Copy current upper bound
+    curr_yL2 = curr_yL1;               % Duplicate for the second region
+    curr_yU2 = curr_yU1;               % Duplicate for the second region
+    curr_yU1(pp) = newborder;          % Update the upper bound for the first region
+    curr_yL2(pp) = newborder;          % Update the lower bound for the second region
+   
+   rect_yL=[rect_yL(:,1:vkindex-1),curr_yL1,curr_yL2,rect_yL(:,vkindex+1:end)];
+   rect_yU=[rect_yU(:,1:vkindex-1),curr_yU1,curr_yU2,rect_yU(:,vkindex+1:end)];
+   
+   % Perform triangulation on the new regions
+   h1=l2_triangulation_loop(Pt,curr_yL1,curr_yU1,xL,xU,yLB,yUB);
+   h2=l2_triangulation_loop(Pt,curr_yL2,curr_yU2,xL,xU,yLB,yUB);
+   
+   % Update the solution if a better one is found
+   vopt1 = sum(h1.res); % Residual for the first region
+   vopt2 = sum(h2.res); % Residual for the second region
+   
+   rect={rect{1:vkindex-1},h1,h2,rect{vkindex+1:end}};
+   rect_LB=[rect_LB(1:vkindex-1),h1.lowerbound,h2.lowerbound,rect_LB(vkindex+1:end)];
+   
+    if vopt1 < vopt
+        vopt = vopt1; % Update the optimal value
+        U = [1; h1.y(1:3)]; % Update the 3D point estimate
+    end
+    if vopt2 < vopt
+        vopt = vopt2; % Update the optimal value
+        U = [1; h2.y(1:3)]; % Update the 3D point estimate
+    end
+   
+   %screen and remove useless rectangles...
+   %Remove regions with no potential for improvement
+   removeindex=[];
+   for ii=1:length(rect)
+       if rect{ii}.lowerbound>vopt
+           %remove!
+           removeindex(end+1)=ii;   % Remove those regions
+       end
+   end
+   rect(removeindex)=[];
+   rect_yL(:,removeindex)=[];
+   rect_yU(:,removeindex)=[];
+   rect_LB(removeindex)=[];
+   
+   iter=iter+1;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+end %Branch and Bound-loop
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+U=pflat(T*U);  
+U=U(1:3);
+fprintf('******** Ending (L2,L2) Triangulation Algorithm ********\n\n');
+
+
+
