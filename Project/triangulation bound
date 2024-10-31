@@ -1,0 +1,191 @@
+function [rect_yL,rect_yU]=triangulation_bound(Pt,thr,yLB,yUB)
+
+% This function computes the lower and upper bounds for the y-coordinate 
+% of a 3D point based on multiple camera views using L2 triangulation.
+%
+% Input:
+% - Pt: cell array of camera projection matrices (each a 3x4 matrix)
+% - thr: threshold for reprojection residuals
+% - yLB: lower bound on the y-coordinate
+% - yUB: upper bound on the y-coordinate
+%
+% Output:
+% - rect_yL: vector of lower bounds for y-coordinate
+% - rect_yU: vector of upper bounds for y-coordinate
+
+
+nbrimages = length(Pt); % Number of camera views
+P0 = Pt{1}; % First camera matrix
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% OPTIMIZATION - bounds
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%variables: x1,x2,x3, a2,...,an
+vars=2+nbrimages;
+
+%%sedumi - package for solving convex optimization problems 
+
+% SeDuMi matrices for linear and cone constraints
+At_l = sparse(zeros(0, vars)); % Linear inequalities
+c_l = sparse(zeros(0, 1)); % Linear inequality constants
+At = sparse(zeros(0, vars)); % Cone constraints
+c = sparse(zeros(0, 1)); % Cone constraint constants
+clear K; % Constraint structure
+K.l = 0; % Linear constraint count
+K.q = []; % List of quadratic (cone) constraints
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%first residual (for the first camera view)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Initialize a 3-dimensional quadratic cone constraint for the first camera
+Atmp = sparse(zeros(3, vars)); % Temporary constraint matrix
+ctmp = sparse(zeros(3, 1)); % Temporary constant vector
+
+% Radius constraint (threshold)
+ctmp(1) = thr; 
+
+%%%%%%%%%%%%%   Camera Projection     %%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%       u=PX              %%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%     P=[p1 p2 p3 p4]     %%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%     X=(X,Y,Z,1)T        %%%%%%%%%%%%%%%%    
+
+% Coefficients for reprojection residuals
+% f1 = u11 - p1' * X
+% f2 = u21 - p2' * X
+Atmp(2:3, 1:3) = P0(1:2, 2:4); % Assigning parts of the camera matrix
+ctmp(2:3) = -P0(1:2, 1); % Assigning constants
+
+% Add the quadratic cone constraint
+At = [At; Atmp];
+c = [c; ctmp];
+K.q = [K.q, 3]; % 3-dimensional cone
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%second residual + remaining...
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+for cnt=1:nbrimages-1
+    % Indexing for auxiliary variable a2, a3, ..., an
+    indexa=3+cnt;   %indexa=a2
+
+    % Second camera matrix
+    Ptmp=Pt{cnt+1}; %second camera
+
+    % 4-dimensional cone constraint for the current camera view
+    Atmp=sparse(zeros(4,vars));
+    ctmp=sparse(zeros(4,1));
+
+    %radius:lambda+a2
+    %lambda=p3*U
+    %First element: depth term (p3 * U) + a2
+    Atmp(1, 1:3) = -Ptmp(3, 2:4); % Assigning depth coefficients
+    Atmp(1, indexa) = -1; % Coefficient for auxiliary variable
+    ctmp(1) = Ptmp(3, 1); % Constant
+
+    %%%%%%%%%%  Coefficients for reprojection residuals   %%%%%%%%%%%%
+    
+    %f1=u11*lambda-p1'*U
+    %f2=u21*lambda-p2'*U
+    Atmp(2:3, 1:3) = 2 * Ptmp(1:2, 2:4); % Assigning parts of the camera matrix
+    ctmp(2:3) = -2 * Ptmp(1:2, 1); % Constants
+
+    %depth term (p3 * U)- a2
+    Atmp(4,1:3)=-Ptmp(3,2:4);
+    Atmp(4,indexa)=1;
+    ctmp(4)=Ptmp(3,1);
+
+    %Add the 4-dimensional quadratic cone constraint
+    At=[At;Atmp];
+    c=[c;ctmp];
+    K.q=[K.q,4];  % 4-dimensional cone
+    
+    %Linear inequality: thr^2 * lambda_i >= alpha_i
+    %thr^2*lambda_i-alpha_i>=0
+    Atmp=sparse(zeros(1,vars));
+    ctmp=sparse(zeros(1,1));
+    Atmp(1,1:3)=-Ptmp(3,2:4)*thr^2;  % Coefficients for lambda
+    Atmp(1,indexa)=1;
+    ctmp(1)=thr^2*Ptmp(3,1);
+
+    At_l=[At_l;Atmp];
+    c_l=[c_l;ctmp];
+    K.l=K.l+1; % Increment linear constraint count
+    
+    %%%%%%%%%%%%   Bounding the Depth(y-coordinate)    %%%%%%%%%%%%%%%
+    %%%%%%%%%%%%              yLB<=pi3X<=yUB           %%%%%%%%%%%%%%%
+    
+    %depth should be positive
+    %Depth constraint: depth > yLB
+    Atmp=sparse(zeros(1,vars));
+    ctmp=sparse(zeros(1,1));
+    Atmp(1,1:3)=-Ptmp(3,2:4)';
+    ctmp(1)=Ptmp(3,1)-yLB; %homogeneous one of Ptmp % Lower bound constraint
+    At_l=[At_l;Atmp];
+    c_l=[c_l;ctmp];
+    K.l=K.l+1;
+    
+    %Depth should be less than yUB
+    %Depth constraint: depth < yUB
+    Atmp=sparse(zeros(1,vars));
+    ctmp=sparse(zeros(1,1));
+    Atmp(1,1:3)=Ptmp(3,2:4)';
+    ctmp(1)=yUB-Ptmp(3,1); %homogeneous one of Ptmp % Upper bound constraint
+    At_l=[At_l;Atmp];
+    c_l=[c_l;ctmp];
+    K.l=K.l+1;
+    
+end %cnt End of camera view loop
+
+% Initialize solution vector and parameters
+b = sparse(zeros(vars, 1)); % Solution vector
+pars = []; % Parameters for SeDuMi
+pars.fid = 0; % Suppress SeDuMi outputb=sparse(zeros(vars,1));
+
+n = min(nbrimages - 1, 3); % Number of bounds to compute (up to 3 views)
+rect_yL = zeros(n, 1); % Lower bound for y-coordinate
+rect_yU = zeros(n, 1); % Upper bound for y-coordinate
+
+for ii=1:n
+    % Get the camera matrix for the current view
+    Ptmp=Pt{ii+1};
+    b(1:3)=Ptmp(3,2:4)'; % Set coefficients for current depth
+    
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % SEDUMI
+
+    % Check if the current camera view is parallel to the first image plane
+    if norm(Ptmp(3,:)-[1,0,0,0])<1e-10
+        rect_yL(ii)=1;
+        rect_yU(ii)=1;
+    else
+        
+        %%% minimize the reprojection residual subject to the 
+        %%% quadratic cone constraints and the depth bounds
+        
+        %%% minimize ||r||2
+        
+        % Solve the optimization problem using SeDuMi
+        [x,yU,infoU]=sedumi([At_l;At],b,[c_l;c],K,pars);
+        [x,yL,infoL]=sedumi([At_l;At],-b,[c_l;c],K,pars);
+    
+        % Handle numerical errors
+        if infoU.numerr==1 || infoL.numerr==1
+            rect_yL(ii)=yLB;
+            rect_yU(ii)=yUB;
+        else
+            % Compute the lower and upper bounds for the y-coordinate
+            rect_yL(ii)=max(b'*yL+Ptmp(3,1),yLB);
+            rect_yU(ii)=min(b'*yU+Ptmp(3,1),yUB);
+        end
+    end
+    
+end
+
+
