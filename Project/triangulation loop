@@ -1,0 +1,296 @@
+function hh=l2_triangulation_loop(Pt,rect_yL,rect_yU,xL,xU,yLB,yUB);
+
+nbrimages=length(Pt);
+P0=Pt{1};
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% OPTIMIZATION - over one rectangle
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%variables: x1,x2,x3, a1,a2, +3 convex envelope dummies (z,yp,zp)
+vars=3+nbrimages+3*(nbrimages-1);
+index_z=3+nbrimages+[1:3:3*(nbrimages-1)]; %location of z_2,z_3,...,z_nbrimages
+
+feasible=1;
+
+%sedumi matrices
+At_l=sparse(zeros(0,vars)); %linear inequalities
+c_l=sparse(zeros(0,1));
+At=sparse(zeros(0,vars)); %cone constraints
+c=sparse(zeros(0,1));
+clear K;
+K.l=0;
+K.q=[];
+
+b=sparse(zeros(vars,1));
+b([4,index_z])=-1; %minimize a_1,z_2,...,z_nbrimages
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%first residual
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%4-cone
+Atmp=sparse(zeros(4,vars));
+ctmp=sparse(zeros(4,1));
+
+%radius
+Atmp(1,4)=-1;
+ctmp(1)=1/4;
+
+%coefficients
+
+%f1=u11*1-p1'*U
+%f2=u21*1-p2'*U
+Atmp(2:3,1:3)=P0(1:2,2:4);
+ctmp(2:3)=-P0(1:2,1);
+
+Atmp(4,4)=-1;
+ctmp(4)=-1/4;
+
+At=[At;Atmp];
+c=[c;ctmp];
+K.q=[K.q,4];
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%second residual + remaining...
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+for cnt=1:nbrimages-1,
+    %indexing...
+    index=index_z(cnt); %envolope variables start index=z,index+1=yp,index+2=zp
+    indexa=4+cnt;   %indexa=a_cnt
+
+    %cone constraint for a_cnt
+
+    Ptmp=Pt{cnt+1}; %camera cnt+1
+
+    %4-cone
+    Atmp=sparse(zeros(4,vars));
+    ctmp=sparse(zeros(4,1));
+
+    %radius: lambda+a2
+    %lambda=p3*U
+
+    Atmp(1,1:3)=-Ptmp(3,2:4);
+    Atmp(1,indexa)=-1; %a_cnt
+    ctmp(1)=Ptmp(3,1);
+
+    %coefficients
+
+    %f1=u11*lambda-p1'*U
+    %f2=u21*lambda-p2'*U
+    Atmp(2:3,1:3)=2*Ptmp(1:2,2:4);
+    ctmp(2:3)=-2*Ptmp(1:2,1);
+
+    %p3'*U-a2
+    Atmp(4,1:3)=-Ptmp(3,2:4);
+    Atmp(4,indexa)=1;
+    ctmp(4)=Ptmp(3,1);
+
+    At=[At;Atmp];
+    c=[c;ctmp];
+    K.q=[K.q,4];
+
+    %convex envelope for positive quadrant of x/y
+    
+    %bounds
+    if cnt<=3,
+        yL=rect_yL(cnt);
+        yU=rect_yU(cnt);
+    else
+         %find upper and lower bounds for y
+         LL=[Pt{2}(3,2:4);Pt{3}(3,2:4);Pt{4}(3,2:4)];
+         LL0=[Pt{2}(3,1);Pt{3}(3,1);Pt{4}(3,1)];
+         
+         tmp=svd(LL);
+         if tmp(3)<=1e-5,
+             warning('Special case: Depth space has low rank');
+             iLL=Ptmp(3,2:4)*pinv(LL);
+         else
+             iLL=Ptmp(3,2:4)*inv(LL);
+         end
+         
+         tmp1=iLL'.*rect_yL;
+         tmp2=iLL'.*rect_yU;
+         
+         yU=sum(max(tmp1,tmp2))-iLL*LL0+Ptmp(3,1);
+         yL=sum(min(tmp1,tmp2))-iLL*LL0+Ptmp(3,1);
+         
+         yU=min(yU,yUB);
+         yL=max(yL,yLB);
+         
+         if yL>yU,
+             feasible=0;
+         end
+    end
+
+    %linear inequalities...
+    Atmp=sparse(zeros(6,vars));
+    ctmp=sparse(zeros(6,1));
+
+    %RECALL: x means a2 and y means lambda
+    %envolope variables start index=z,index+1=yp,index+2=zp
+
+    %z-zp>=0
+    Atmp(1,index)=-1;Atmp(1,index+2)=1;
+    %zp>=0
+    Atmp(2,index+2)=-1;
+    %x-xL>=0 (a2-xL>=0)
+    Atmp(3,indexa)=-1;
+    ctmp(3)=-xL;
+    %xU-x>=0 (xU-a2>=0)
+    Atmp(4,indexa)=1;
+    ctmp(4)=xU;
+    %y-yL>=0 (lambda-yL>=0),lambda=p3'*U
+%%%    Atmp(5,1:3)=-Ptmp(3,1:3);
+    Atmp(5,1:3)=-Ptmp(3,2:4);
+%%%    ctmp(5)=Ptmp(3,4)-yL;
+    ctmp(5)=Ptmp(3,1)-yL;
+    %yU-y>=0 (yU-lambda>=0),lambda=p3'*U
+%%%    Atmp(6,1:3)=Ptmp(3,1:3);
+    Atmp(6,1:3)=Ptmp(3,2:4);
+%%%    ctmp(6)=yU-Ptmp(3,4);
+    ctmp(6)=yU-Ptmp(3,1);
+
+    At_l=[At_l;Atmp];
+    c_l=[c_l;ctmp];
+    K.l=K.l+6;
+
+
+    %C and D-inequalities
+    Atmp=sparse(zeros(4,vars));
+    ctmp=sparse(zeros(4,1));
+
+    %RECALL: x means a2 and y means lambda
+    %envolope variables start index=z,index+1=yp,index+2=zp
+
+    Atmp(1,index+1)=-1;
+    Atmp(1,indexa)=-yL/(xU-xL);
+    ctmp(1)=-yL*xU/(xU-xL);
+
+    Atmp(2,index+1)=-1;
+%%%    Atmp(2,1:3)=Ptmp(3,1:3);
+    Atmp(2,1:3)=Ptmp(3,2:4);
+    Atmp(2,indexa)=-yU/(xU-xL);
+%%%    ctmp(2)=-yU*xL/(xU-xL)-Ptmp(3,4);
+    ctmp(2)=-yU*xL/(xU-xL)-Ptmp(3,1);
+
+    Atmp(3,indexa)=yU/(xU-xL);
+    Atmp(3,index+1)=1;
+    ctmp(3)=yU*xU/(xU-xL);
+
+%%%    Atmp(4,1:3)=-Ptmp(3,1:3);
+    Atmp(4,1:3)=-Ptmp(3,2:4);
+    Atmp(4,index+1)=1;
+    Atmp(4,indexa)=yL/(xU-xL);
+%%%    ctmp(4)=yL*xL/(xU-xL)+Ptmp(3,4);
+    ctmp(4)=yL*xL/(xU-xL)+Ptmp(3,1);
+
+    At_l=[At_l;Atmp];
+    c_l=[c_l;ctmp];
+    K.l=K.l+4;
+
+    %A-cone
+    Atmp=sparse(zeros(3,vars));
+    ctmp=sparse(zeros(3,1));
+
+    %radius
+    Atmp(1,index+1)=-(xU-xL)^2;
+    Atmp(1,index+2)=-1;
+
+    %coefficients
+    Atmp(2,indexa)=2*sqrt(xL);
+    ctmp(2)=2*sqrt(xL)*xU;
+
+    Atmp(3,index+1)=-(xU-xL)^2;
+    Atmp(3,index+2)=1;
+
+    At=[At;Atmp];
+    c=[c;ctmp];
+    K.q=[K.q,3];
+
+    %B-cone
+    Atmp=sparse(zeros(3,vars));
+    ctmp=sparse(zeros(3,1));
+
+    %radius
+%%%    Atmp(1,1:3)=-(xU-xL)^2*Ptmp(3,1:3);
+    Atmp(1,1:3)=-(xU-xL)^2*Ptmp(3,2:4);
+    Atmp(1,index+1)=(xU-xL)^2;
+    Atmp(1,index)=-1;
+    Atmp(1,index+2)=1;
+
+%%%    ctmp(1)=(xU-xL)^2*Ptmp(3,4);
+    ctmp(1)=(xU-xL)^2*Ptmp(3,1);
+
+    %coefficients
+    Atmp(2,indexa)=-2*sqrt(xU);
+    ctmp(2)=-2*sqrt(xU)*xL;
+
+%%%    Atmp(3,1:3)=-(xU-xL)^2*Ptmp(3,1:3);
+    Atmp(3,1:3)=-(xU-xL)^2*Ptmp(3,2:4);
+    Atmp(3,index+1)=(xU-xL)^2;
+    Atmp(3,index)=1;
+    Atmp(3,index+2)=-1;
+
+%%%    ctmp(3)=(xU-xL)^2*Ptmp(3,4);
+    ctmp(3)=(xU-xL)^2*Ptmp(3,1);
+
+    At=[At;Atmp];
+    c=[c;ctmp];
+    K.q=[K.q,3];
+    
+end %cnt
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SEDUMI
+
+if feasible==1,
+    pars=[];
+    pars.fid=0;
+    pars.eps=0; %best accuracy possible
+    [x,y,info]=sedumi([At_l;At],b,[c_l;c],K,pars);
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% end of OPTIMIZATION - over one rectangle
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+if  feasible==0 || info.dinf==1, %no feasible solution
+    res=Inf*ones(1,nbrimages);
+    lowerbound=Inf;
+else
+    %feasible solution
+    U=[1;y(1:3)];
+    
+    %compute residuals
+    res=zeros(1,nbrimages);
+    for ii=1:nbrimages,
+        tmp=pflat(Pt{ii}*U);
+%        res(ii)=sum((u(:,ii)-tmp(1:2)).^2);
+        res(ii)=sum(tmp(1:2).^2);
+    end
+    lowerbound=sum(y([4,index_z]));
+    hh.y=y;
+    tmp=zeros(nbrimages-1,1);
+    %store depths
+    for cnt=1:nbrimages-1,
+        tmp(cnt)=Pt{cnt+1}(3,:)*U;
+    end
+    hh.lambda=tmp;
+end
+
+
+hh.res=res;
+hh.lowerbound=lowerbound;
