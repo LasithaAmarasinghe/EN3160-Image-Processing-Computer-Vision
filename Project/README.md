@@ -36,4 +36,3 @@ This project offers a practical approach to solving the complex problem of multi
 
 ## Acknowledgements
 This research and the development of the optimization methods are built on projective geometry principles, convex programming, and real-time computational requirements. Special thanks to the open-source optimization tools, SeDuMi and CVXPY, for their robustness in handling large-scale problems.
-```
