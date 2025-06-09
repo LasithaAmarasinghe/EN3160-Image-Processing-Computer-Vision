@@ -29,7 +29,7 @@ The goal of this project is to find the most accurate 3D position for a point in
 
 ## Team
 - **Lasitha Amarasinghe** 
-- **Naindu Sirimanna** 
+- **Navindu Sirimanna** 
   
 ## Conclusion
 This project offers a practical approach to solving the complex problem of multiview triangulation by leveraging global optimization methods. The techniques used are applicable to dynamic real-time systems like autonomous vehicles, where accurate 3D mapping is crucial for decision-making.
